@@ -1,1 +1,1 @@
-# STOR765_Spring2020_Angel_Huang
+# STOR765_Fall2020_Angel_Huang
