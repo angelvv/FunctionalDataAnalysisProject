@@ -17,7 +17,7 @@ disp(['Running CrackTeeth2020.m']) ;
 % Angel Huang Created 9/10/2020
 
 %% Select process to run
-ipart = 31;
+ipart = 34;
     %    0 - Read in Raw Data, and Save as .mat file
     %    1 - Raw Data Curves, original scale
     %    2 - Raw Data Curves, log10 scale
@@ -27,7 +27,7 @@ ipart = 31;
 
 %% Read in Raw Data, and Save as .mat file
 datSaveName = 'CrackTeeth2020.mat';
-baseDir = 'E:\Dropbox (Frohlich Lab)\Frohlich Lab Team Folder\Codebase\CodeAngel\202009_Function data analysis\';
+baseDir = 'E:\Dropbox (Frohlich Lab)\Frohlich Lab Team Folder\Codebase\CodeAngel\202009_Function data analysis\STOR765_Fall2020_Angel_Huang\CrackTeeth2020\';
 %addpath(genpath('C:\Dropbox (Frohlich Lab)\Frohlich Lab Team Folder\Codebase\CodeAngel\202009_Function data analysis\'));
 addpath(genpath(baseDir));
 dataDir = [baseDir '/'];
@@ -46,7 +46,7 @@ if ipart == 0
         dataS{iFile,1} = teethIDs(iFile,:);
         dataS{iFile,2} = num;
         dataS{iFile,3} = log10(num);
-        dataS{iFile,4} = num/sum(dataS{iFile,2}); % normalized data (% pixel)
+        dataS{iFile,4} = num/sum(dataS{iFile,2}); % normalized data (% voxel)
         dataS{iFile,5} = log10(dataS{iFile,4});
         dataMat(1:numel(num),iFile) = num'; % Each column is a sample
     end
@@ -87,14 +87,14 @@ if ipart == 1
         subplot(121) % original scale
         l(iFile) = plot(dataS{iFile,2}, colors(crackMask(iFile)+1));
         hold on
-        xlim(xLim);ylim([0,800]); xlabel('Feature ID'); ylabel('NumPixels');
-        if iFile == 1; title('Distribution of NumPixels'); end
+        xlim(xLim);ylim([0,800]); xlabel('Feature ID'); ylabel('NumVoxels');
+        if iFile == 1; title('Distribution of NumVoxels'); end
         
         subplot(122) % log scale
         plot(log10(dataS{iFile,2}), colors(crackMask(iFile)+1));
         hold on
-        xlim(xLim);xlabel('Feature ID'); ylabel('Log_{10}(NumPixels)');
-        if iFile == 1; title('Distribution of Log_{10}(NumPixels)'); end
+        xlim(xLim);xlabel('Feature ID'); ylabel('Log_{10}(NumVoxels)');
+        if iFile == 1; title('Distribution of Log_{10}(NumVoxels)'); end
     end
     legend([l(1) l(nFile)],legendcellstr); 
     saveas(fig, [savestr '.fig']);
@@ -298,7 +298,7 @@ end
 
 
 %% Calculate quantile
-vprob = [0.01:0.05:1]; % 100 intervals
+vprob = [0.01:0.01:1]; % 100 intervals
 vquant = zeros(numel(vprob),nTeeth);
 for iTeeth = 1:nTeeth
     mdat = dataS{iTeeth,2}'; % 1d column vector
@@ -317,15 +317,15 @@ if ipart == 21
         l(iFile) = plot(vprob,vquant(:,iFile)',colors(crackMask(iFile)+1));
         hold on
         
-        if iFile == 1; title('Distribution of Quantile(NumPixels)');
-            xlim(xLim); xlabel('Quantile'); ylabel('Quantile(NumPixels)');
+        if iFile == 1; title('Distribution of Quantile(NumVoxels)');
+            xlim(xLim); xlabel('Quantile'); ylabel('Quantile(NumVoxels)');
         end
         
         subplot(122) % log scale
         plot(vprob,log10(vquant(:,iFile)'), colors(crackMask(iFile)+1));
         hold on        
-        if iFile == 1; title('Distribution of Log_{10}(Quantile(NumPixels))');
-            xlim(xLim); xlabel('Quantile'); ylabel('Log_{10}(Quantile(NumPixels))');
+        if iFile == 1; title('Distribution of Log_{10}(Quantile(NumVoxels))');
+            xlim(xLim); xlabel('Quantile'); ylabel('Log_{10}(Quantile(NumVoxels))');
         end
     end
     legend([l(1) l(nTeeth)],legendcellstr); 
@@ -497,6 +497,65 @@ if ipart == 32
                          'icolor',mlegendcolor, ... % only need 2 rows of color
                          'titlecellstr',titlecellstr, ...
                          'legendcellstr',{legendcellstr}, ...
+                         'savestr',savestr, ...
+                         'iscreenwrite',1) ;
+    [stat,pval,zscore] = DiProPermSM(trainp,trainn,paramstruct) ;
+    saveas(fig, [savestr '.fig']);
+    saveas(fig, [savestr '.png']);
+end
+
+%% DWD for quantile
+if ipart == 33
+    mcolor = ones(nTeeth,1) * [0 0 1]; % initialize as blue (since scatter plot all data is black too)
+    mcolor(crackMask,:) = ones(sum(crackMask),1) * [1 0 0];
+    mdat = vquant; % nFeatures x nSample (each column is a sample)
+    nFeature = size(mdat,1);
+    trainp = mdat(1:nFeature,crackMask); % nFeatures x nSample (each column is a sample)
+    trainn = mdat(1:nFeature,~crackMask); % d x np
+    [dirvec,beta,dr] = DWD2XQ(trainp,trainn); % default penalty, handle inbalanced data
+    
+    savestr = [num2str(ipart) '_DWD_PCAScatPlot_' num2str(nFeature) 'Features_2PC'] ;    
+    paramstruct = struct('npcadiradd',-2, ... % "-" to get ortho
+                         'icolor',mcolor, ...
+                         'titlecellstr',titlecellstr, ...
+                         'labelcellstr',{{'DWD Direction'; 'OPC1'; 'OPC2'}}, ...% 'OPC2'; 'OPC3'; 'OPC3'}}, ...
+                         'savestr',savestr, ...
+                         'isubpopkde', 1,...% partition data into subpopulations
+                         'iscreenwrite',1) ;
+    fig = AH_figure(npc,npc,savestr);
+    scatplotSM(mdat,dirvec,paramstruct);
+    saveas(fig, [savestr '.fig']);
+    saveas(fig, [savestr '.png']);
+    
+    savestr = [num2str(ipart) '_DWD_PCAScatPlot_' num2str(nFeature) 'Features_4PC'] ;    
+    paramstruct = struct('npcadiradd',-4, ... % "-" to get ortho
+                         'icolor',mcolor, ...
+                         'titlecellstr',titlecellstr, ...
+                         'labelcellstr',{{'DWD Direction'; 'OPC1'; 'OPC2'; 'OPC3'; 'OPC4'}}, ...
+                         'savestr',savestr, ...
+                         'isubpopkde', 1,...% partition data into subpopulations
+                         'iscreenwrite',1) ;
+    fig = AH_figure(npc,npc,savestr);
+    scatplotSM(mdat,dirvec,paramstruct);
+    saveas(fig, [savestr '.fig']);
+    saveas(fig, [savestr '.png']);
+end
+
+
+%% Do DiProPerm test on DWD class seperation
+if ipart == 34    
+    mlegendcolor = [1 0 0; 0 0 1]; % r, b
+    mdat = vquant; % nFeatures x nSample (each column is a sample)
+    nFeature = size(mdat,1);
+    trainp = mdat(1:nFeature,crackMask); % nFeatures x nSample (each column is a sample)
+    trainn = mdat(1:nFeature,~crackMask); % d x np
+    savestr = [num2str(ipart) '_DiProPerm_' num2str(nFeature) 'Features'] ;    
+    fig = AH_figure(2,2,savestr);
+    paramstruct = struct('idir',1, ... % DWD direction vector
+                         'icolor',mlegendcolor, ... % only need 2 rows of color
+                         'titlecellstr',titlecellstr, ...
+                         'legendcellstr',{legendcellstr}, ...
+                         'isubpopkde', 1,...% partition data into subpopulations
                          'savestr',savestr, ...
                          'iscreenwrite',1) ;
     [stat,pval,zscore] = DiProPermSM(trainp,trainn,paramstruct) ;
