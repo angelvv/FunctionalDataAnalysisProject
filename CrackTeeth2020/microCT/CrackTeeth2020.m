@@ -17,13 +17,24 @@ disp(['Running CrackTeeth2020.m']) ;
 % Angel Huang Created 9/10/2020
 
 %% Select process to run
-ipart = 34;
+ipart = 23;
     %    0 - Read in Raw Data, and Save as .mat file
-    %    1 - Raw Data Curves, original scale
-    %    2 - Raw Data Curves, log10 scale
-    %    3 - 
-    %    4 - PCA scatterplot, brushed
-    %    5 - Raw Data Curves, log10 scale, brushed
+    %    1 - (In report) Raw Data Curves, original or log scale
+    %    2 - (In report) Curve data plot on PC direction
+    %    3 - Marginal Distribution plot for each sample (No use)
+    %    4 - (In report) PCA scatterplot on 2PC directions, brushed
+    %    5 - Projection plot for each sample (No use)
+    
+    %    2x - Quantile analysis
+    %    21 - (In report) Plot raw traces and log scale traces for quantile
+    %    22 - (In report) Quantile curve data plot on PC direction
+    %    23 - (In report: mean) Marginal Distribution plot of quantile
+    %    24 - Quantile PCA scatterplot on 2PC directions, brushed
+    
+    %    31 - (In report) DWD for crack-size curves
+    %    32 - (In report) DiProPerm test on DWD class seperation
+    %    33 - (In report) DWD for Quantile representation of data
+    %    34 - (In report) DiProPerm test on DWD class seperation of quantiles
 
 %% Read in Raw Data, and Save as .mat file
 datSaveName = 'CrackTeeth2020.mat';
@@ -35,14 +46,14 @@ resultDir = [baseDir 'results/'];
 
 if ipart == 0    
     % Navigate to project folder and then execute
-    datFolderName = [baseDir 'microCT/csv_files/'];
+    datFolderName = ['csv_files/'];
     fileInfo = dir([datFolderName '*.csv']);
     nFile = numel(fileInfo);    
     dataS = cell(nFile,2);
     dataMat = NaN(1000,nFile); % 1000 is the max number of clusters
     for iFile = 1:nFile
         teethIDs(iFile,:) = fileInfo(iFile).name(1:3);
-        num = csvread(fileInfo(iFile).name);
+        num = csvread([datFolderName fileInfo(iFile).name]);
         dataS{iFile,1} = teethIDs(iFile,:);
         dataS{iFile,2} = num;
         dataS{iFile,3} = log10(num);
@@ -52,7 +63,7 @@ if ipart == 0
     end
     crackMask = teethIDs(:,1) == 'A'; % 1=crack, 0=healthy
     % set up brush matrix
-    mcolor = ones(nFile,1) * [0 0 0]; % initialize as black
+    mcolor = ones(nFile,1) * [0 0 1]; % initialize as blue (color for healthy control)
     mcolor(crackMask,:) = ones(sum(crackMask),1) * [1 0 0];
     save(datSaveName,'dataS','dataMat','teethIDs','crackMask','mcolor','-v7.3');
 end
@@ -64,26 +75,27 @@ nFeatures = cellfun(@length,dataS(:,2)); % array of number of features
 minFeature = min(nFeatures); % 315
 maxFeature = max(nFeatures); % 1000
 legendcellstr = {'cracked','healthy'};
-mlegendcolor = [1 0 0; 0 0 0]; % r, k
+mlegendcolor = [1 0 0; 0 0 1]; % r, k
 nTeeth = size(dataS,1);
 nCrack = sum(crackMask);
 nHealthy = nTeeth - nCrack;
 titlecellstr = {{['n = ' num2str(nTeeth) ' teeth'...
       ' (' num2str(nCrack) ' cracked, ' num2str(nHealthy) ' healthy)']}} ;
+% To get some summary
 maxFeature = max(dataMat);
 maxFeature_Crack = maxFeature(crackMask);
 maxFeature_Healthy = maxFeature(~crackMask);
-max(maxFeature_Crack)
-min(maxFeature_Crack)
-max(maxFeature_Healthy)
-min(maxFeature_Healthy)  
+max(maxFeature_Crack);
+min(maxFeature_Crack);
+max(maxFeature_Healthy);
+min(maxFeature_Healthy);
 %% Plot raw traces and log scale traces
 if ipart == 1
     savestr = [num2str(ipart) '_rawTrace'];
     fig = AH_figure(1,2,savestr);
-    colors = 'kr'; % corresponding to crackMask = 0,1
+    colors = 'br'; % corresponding to crackMask = 0,1
     xLim = [0,50];
-    for iFile = 1:nFile
+    for iFile = 1:nTeeth
         subplot(121) % original scale
         l(iFile) = plot(dataS{iFile,2}, colors(crackMask(iFile)+1));
         hold on
@@ -96,7 +108,7 @@ if ipart == 1
         xlim(xLim);xlabel('Feature ID'); ylabel('Log_{10}(NumVoxels)');
         if iFile == 1; title('Distribution of Log_{10}(NumVoxels)'); end
     end
-    legend([l(1) l(nFile)],legendcellstr); 
+    legend([l(1) l(nTeeth)],legendcellstr); 
     saveas(fig, [savestr '.fig']);
     saveas(fig, [savestr '.png']);
     
@@ -105,7 +117,7 @@ if ipart == 1
     fig = AH_figure(1,1,savestr);
     H = histogram(nFeatures(crackMask),8, 'FaceColor','r', 'FaceAlpha',0.5);
     hold on
-    histogram(nFeatures(~crackMask),'BinEdges',H.BinEdges, 'FaceColor','k', 'FaceAlpha',0.5);
+    histogram(nFeatures(~crackMask),'BinEdges',H.BinEdges, 'FaceColor','b', 'FaceAlpha',0.5);
     
     legend(legendcellstr); 
     title(titlecellstr{:});
@@ -131,6 +143,7 @@ if ipart == 2
                          'titlecellstr',titlecellstr, ...
                          'legendcellstr',{legendcellstr}, ...
                          'mlegendcolor',mlegendcolor, ...
+                         'isubpopkde', 1,...% partition data into subpopulations
                          'savestr',savestr, ...
                          'iscreenwrite',1) ;
     % Plot all features
@@ -200,10 +213,14 @@ end
 
 %% Do PCA scatterplot
 npc = 4; % number of PCs
-doLog = 0;
+doLog = 1;
+mcolor = ones(nTeeth,1) * [0 0 1]; % initialize as blue (since scatter plot all data is black too)
+mcolor(crackMask,:) = ones(sum(crackMask),1) * [1 0 0];
+
 if ipart == 4
     nFeature = maxFeature; % 1000 is the max, can choose smaller value to only consider earlier clusters
     mdat = dataMat(1:nFeature,:); % nFeatures x nSample (each column is a sample)
+    mdat(isnan(mdat)) = 0;
     logSuffix = '';
     if doLog == 1
         mdat = log10(mdat+0.1);
@@ -221,6 +238,7 @@ if ipart == 4
                          'icolor',mcolor, ...
                          'titlecellstr',titlecellstr, ...
                          'labelcellstr',{{'PC 1'; 'PC 2'; 'PC 3'; 'PC 4'}}, ...
+                         'isubpopkde', 1,...% partition data into subpopulations
                          'savestr',savestr, ...
                          'iscreenwrite',1) ;
     fig = AH_figure(npc,npc,savestr);
@@ -310,7 +328,7 @@ end
 if ipart == 21
     savestr = [num2str(ipart) '_Q_rawTrace'];
     fig = AH_figure(1,2,savestr);
-    colors = 'kr'; % corresponding to crackMask = 0,1
+    colors = 'br'; % corresponding to crackMask = 0,1
     xLim = [0,0.95];
     for iFile = 1:nTeeth
         subplot(121) % original scale
@@ -335,7 +353,7 @@ end
 
 %% Plot all distributions
 if ipart == 22  
-    doLog = 0;
+    doLog = 1;
     % Prepare data
 %     nFeature = minFeature;
     mdat = vquant; % Truncate to shortest sample (min feature count)
@@ -350,6 +368,7 @@ if ipart == 22
                          'titlecellstr',titlecellstr, ...
                          'legendcellstr',{legendcellstr}, ...
                          'mlegendcolor',mlegendcolor, ...
+                         'isubpopkde', 1,...% partition data into subpopulations                       
                          'savestr',savestr, ...
                          'iscreenwrite',1) ;
     % Plot all features
@@ -397,7 +416,7 @@ if ipart == 23
     % Prepare param    
     savestr = [num2str(ipart) '_Q_margDistPlot_' num2str(nFeature) 'Features' logSuffix] ; % for inside plot
     nplot = 16;
-    istat = 3;
+    istat = 1;
 
     paramstruct = struct('istat',istat,...
                          'nplot',nplot,...
@@ -405,6 +424,7 @@ if ipart == 23
                          'titlecellstr',titlecellstr, ...
                          'legendcellstr',{legendcellstr}, ...
                          'mlegendcolor',mlegendcolor, ...
+                         'isubpopkde', 1,...% partition data into subpopulations
                          'savestr',savestr, ...
                          'iscreenwrite',1) ;
     
@@ -562,3 +582,6 @@ if ipart == 34
     saveas(fig, [savestr '.fig']);
     saveas(fig, [savestr '.png']);
 end
+
+%%
+cd('../'); % change back to script folder

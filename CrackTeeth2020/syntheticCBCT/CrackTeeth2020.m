@@ -17,15 +17,24 @@ disp(['Running CrackTeeth2020.m']) ;
 % Angel Huang Created 9/10/2020
 
 %% Select process to run
-ipart = 34;
+ipart = 23;
     %    0 - Read in Raw Data, and Save as .mat file
-    %    1 - Raw Data Curves, original scale
-    %    2 - Raw Data Curves, log10 scale
-    %    3 - 
-    %    4 - PCA scatterplot, brushed
-    %    5 - Raw Data Curves, log10 scale, brushed
-    %    2x - Using quantile
-    %    3x - DWD
+    %    1 - (In report) Raw Data Curves, original or log scale
+    %    2 - (In report) Curve data plot on PC direction
+    %    3 - Marginal Distribution plot for each sample (No use)
+    %    4 - (In report) PCA scatterplot on 2PC directions, brushed
+    %    5 - Projection plot for each sample (No use)
+    
+    %    2x - Quantile analysis
+    %    21 - (In report) Plot raw traces and log scale traces for quantile
+    %    22 - (In report) Quantile curve data plot on PC direction
+    %    23 - (In report: mean) Marginal Distribution plot of quantile
+    %    24 - Quantile PCA scatterplot on 2PC directions, brushed
+    
+    %    31 - (In report) DWD for crack-size curves
+    %    32 - (In report) DiProPerm test on DWD class seperation
+    %    33 - (In report) DWD for Quantile representation of data
+    %    34 - (In report) DiProPerm test on DWD class seperation of quantiles
 
 %% Read in Raw Data, and Save as .mat file
 datSaveName = 'CrackTeeth2020.mat';
@@ -34,7 +43,7 @@ addpath(genpath('E:\Dropbox (Frohlich Lab)\Frohlich Lab Team Folder\Codebase\Cod
 
 if ipart == 0    
     % Navigate to project folder and then execute
-    datFolderName = '../synthetic_csvs/';
+    datFolderName = 'synthetic_csvs/';
     fileInfo = dir([datFolderName '*.csv']);
     nFile = numel(fileInfo);    
     dataS = cell(nFile,2);
@@ -57,7 +66,7 @@ if ipart == 0
         dataMat(1:numel(num),iFile) = num'; % Each column is a sample
     end
     % set up brush matrix
-    mcolor = ones(nFile,1) * [0 0 0]; % initialize as black
+    mcolor = ones(nFile,1) * [0 0 1]; % initialize as blue
     mcolor(crackMask,:) = ones(sum(crackMask),1) * [1 0 0];
     save(datSaveName,'dataS','dataMat','teethIDs','crackMask','mcolor','-v7.3');
 end
@@ -70,7 +79,7 @@ minFeature = min(nFeatures); % 9
 medFeature = median(nFeatures); % 119
 maxFeature = max(nFeatures); % 948
 legendcellstr = {'cracked','healthy'};
-mlegendcolor = [1 0 0; 0 0 0]; % r, k
+mlegendcolor = [1 0 0; 0 0 1]; % r, b
 nTeeth = size(dataS,1);
 nCrack = sum(crackMask);
 npc = 4;
@@ -78,12 +87,19 @@ nHealthy = nTeeth - nCrack;
 titlecellstr = {{['n = ' num2str(nTeeth) ' teeth'...
       ' (' num2str(nCrack) ' cracked, ' num2str(nHealthy) ' healthy)']}} ;
 
+% To get some summary
+maxFeature_Crack = nFeatures(crackMask);
+maxFeature_Healthy = nFeatures(~crackMask);
+max(maxFeature_Crack);
+min(maxFeature_Crack);
+max(maxFeature_Healthy);
+min(maxFeature_Healthy);
     
 %% Plot raw traces and log scale traces
 if ipart == 1
     savestr = [num2str(ipart) '_rawTrace'];
     fig = AH_figure(1,2,savestr);
-    colors = 'kr'; % corresponding to crackMask = 0,1
+    colors = 'br'; % corresponding to crackMask = 0,1
     xLim = [0,50];
     for iFile = 1:nTeeth
         subplot(121) % original scale
@@ -110,7 +126,7 @@ if ipart == 1
     histogram(nFeatures(crackMask),'BinEdges',H.BinEdges, 'FaceColor','r', 'FaceAlpha',0.5);
     
     hold on
-    histogram(nFeatures(~crackMask),'BinEdges',H.BinEdges, 'FaceColor','k', 'FaceAlpha',0.5);
+    histogram(nFeatures(~crackMask),'BinEdges',H.BinEdges, 'FaceColor','b', 'FaceAlpha',0.5);
     
     legend(legendcellstr); 
     title(titlecellstr{:});
@@ -145,9 +161,10 @@ if ipart == 2
     % Prepare param
     savestr = [num2str(ipart) '_curvdatPlot_' num2str(nFeature) 'Features' logSuffix] ;
     paramstruct = struct('icolor',mcolor, ...
-                         'titlecellstr',titlecellstr, ...
+                         'titlecellstr',titlecellstr, ...                         
                          'legendcellstr',{legendcellstr}, ...
-                         'mlegendcolor',mlegendcolor, ...
+                         'mlegendcolor',mlegendcolor, ... % color legend
+                         'isubpopkde', 1,...% partition data into subpopulations
                          'savestr',savestr, ...
                          'iscreenwrite',1) ;
     % Plot all features
@@ -349,7 +366,7 @@ end
 if ipart == 21
     savestr = [num2str(ipart) '_Q_rawTrace'];
     fig = AH_figure(1,2,savestr);
-    colors = 'kr'; % corresponding to crackMask = 0,1
+    colors = 'br'; % corresponding to crackMask = 0,1
     xLim = [0,0.95];
     for iFile = 1:nTeeth
         subplot(121) % original scale
@@ -374,7 +391,7 @@ end
 
 %% Plot all distributions
 if ipart == 22  
-    doLog = 0;
+    doLog = 1;
     % Prepare data
     nFeature = size(vquant,1); % number of quantiles
     mdat = vquant; % Truncate to shortest sample (min feature count)
@@ -389,6 +406,7 @@ if ipart == 22
                          'titlecellstr',titlecellstr, ...
                          'legendcellstr',{legendcellstr}, ...
                          'mlegendcolor',mlegendcolor, ...
+                         'isubpopkde', 1,...% partition data into subpopulations                        
                          'savestr',savestr, ...
                          'iscreenwrite',1) ;
     % Plot all features
@@ -444,6 +462,7 @@ if ipart == 23
                          'titlecellstr',titlecellstr, ...
                          'legendcellstr',{legendcellstr}, ...
                          'mlegendcolor',mlegendcolor, ...
+                         'isubpopkde', 1,...% partition data into subpopulations
                          'savestr',savestr, ...
                          'iscreenwrite',1) ;
     
@@ -546,7 +565,7 @@ if ipart == 32
     saveas(fig, [savestr '.png']);
 end
 
-%% DWD for quantile
+%% DWD for quantiles
 if ipart == 33
     mcolor = ones(nTeeth,1) * [0 0 1]; % initialize as blue (since scatter plot all data is black too)
     mcolor(crackMask,:) = ones(sum(crackMask),1) * [1 0 0];
@@ -604,3 +623,6 @@ if ipart == 34
     saveas(fig, [savestr '.fig']);
     saveas(fig, [savestr '.png']);
 end
+
+%%
+cd('../'); % change back to script folder
